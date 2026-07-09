@@ -44,6 +44,45 @@ services:
     networks:
       - mlops_network
 
+  mlflow:
+    image: python:3.11-slim
+    container_name: wine_mlflow
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - minio
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "${MLFLOW_PORT}:5000"
+    command: >
+      bash -c "pip install --no-cache-dir mlflow psycopg2-binary boto3 &&
+      mlflow server
+      --backend-store-uri ${MLFLOW_BACKEND_STORE_URI}
+      --default-artifact-root ${MLFLOW_ARTIFACT_ROOT}
+      --host 0.0.0.0
+      --port 5000"
+    networks:
+      - mlops_network
+
+  jenkins:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.jenkins
+    container_name: wine_jenkins
+    restart: unless-stopped
+    user: root
+    ports:
+      - "${JENKINS_PORT}:8080"
+      - "${JENKINS_AGENT_PORT}:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - mlops_network
+
 networks:
   mlops_network:
     driver: bridge
@@ -51,3 +90,4 @@ networks:
 volumes:
   postgres_data:
   minio_data:
+  jenkins_home:
