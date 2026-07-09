@@ -1,21 +1,35 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .venv/
 venv/
+.pytest_cache/
 
-# Environment
+# Environment variables
 .env
 
 # Data
 data/raw/
 data/processed/
+data/interim/
 *.csv
 
-# ML artifacts
+# MLflow
 mlruns/
+
+# Artifacts and models
 artifacts/
 models/
+*.pkl
+*.joblib
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Docker logs
+*.log
 
 # OS
 .DS_Store
@@ -23,6 +37,3 @@ Thumbs.db
 
 # VS Code
 .vscode/
-
-# Docker
-*.log
