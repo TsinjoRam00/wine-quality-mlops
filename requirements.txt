@@ -1,0 +1,15 @@
+pandas
+numpy
+scikit-learn
+xgboost
+mlflow
+fastapi
+uvicorn[standard]
+pytest
+httpx
+psycopg2-binary
+boto3
+python-dotenv
+pydantic
+matplotlib
+joblib
