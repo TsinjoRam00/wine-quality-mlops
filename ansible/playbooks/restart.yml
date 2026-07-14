@@ -1,0 +1,21 @@
+---
+- name: Restart Wine Quality MLOps platform
+  hosts: mlops_servers
+  become: true
+
+  tasks:
+    - name: Restart docker compose services
+      command: docker compose restart
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Show service status
+      command: docker compose ps
+      args:
+        chdir: "{{ app_dir }}"
+      register: compose_status
+      changed_when: false
+
+    - name: Print service status
+      debug:
+        var: compose_status.stdout_lines

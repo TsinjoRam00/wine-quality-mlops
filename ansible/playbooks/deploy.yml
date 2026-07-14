@@ -1,0 +1,9 @@
+---
+- name: Deploy Wine Quality MLOps platform
+  hosts: mlops_servers
+  become: false
+
+  roles:
+    - common
+    - docker
+    - app

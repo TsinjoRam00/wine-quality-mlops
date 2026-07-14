@@ -1,0 +1,35 @@
+---
+- name: Update Wine Quality MLOps platform
+  hosts: mlops_servers
+  become: true
+
+  tasks:
+    - name: Pull latest project code
+      git:
+        repo: "{{ git_repo }}"
+        dest: "{{ app_dir }}"
+        version: "{{ git_branch }}"
+        update: true
+        force: true
+
+    - name: Validate docker compose configuration
+      command: docker compose config
+      args:
+        chdir: "{{ app_dir }}"
+      changed_when: false
+
+    - name: Rebuild and restart services
+      command: docker compose up -d --build
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Show service status
+      command: docker compose ps
+      args:
+        chdir: "{{ app_dir }}"
+      register: compose_status
+      changed_when: false
+
+    - name: Print service status
+      debug:
+        var: compose_status.stdout_lines

@@ -1,0 +1,18 @@
+---
+postgres_user: mlops_user
+postgres_password: mlops_password
+postgres_db: mlflow_db
+postgres_port: 5432
+
+minio_root_user: minioadmin
+minio_root_password: minioadmin123
+minio_api_port: 9000
+minio_console_port: 9001
+mlflow_bucket_name: mlflow-artifacts
+
+mlflow_port: 5000
+app_port: 8000
+
+mlflow_model_name: WineQualityClassifier
+mlflow_model_alias: champion
+mlflow_experiment_name: wine-quality-classification
