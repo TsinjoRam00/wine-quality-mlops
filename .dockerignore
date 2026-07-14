@@ -5,8 +5,10 @@ __pycache__
 .git
 .gitignore
 .env
-data
-artifacts
+data/raw
+artifacts/models
+artifacts/reports
+artifacts/figures
 mlruns
 notebooks
 tests

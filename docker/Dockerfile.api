@@ -29,6 +29,18 @@ COPY app ./app
 # Copie du code ML.
 COPY src ./src
 
+# Copie les données déjà préparées nécessaires au training.
+COPY data/processed ./data/processed
+
+# Copie les objets d'imputation, de traitement des outliers et de scaling.
+COPY artifacts/preprocessing ./artifacts/preprocessing
+
+# Crée les dossiers utilisés par l'entraînement et l'évaluation.
+RUN mkdir -p \
+    artifacts/models \
+    artifacts/reports \
+    artifacts/figures
+
 # Expose le port FastAPI.
 EXPOSE 8000
 

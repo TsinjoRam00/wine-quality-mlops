@@ -1,0 +1,66 @@
+services:
+  api:
+    image: 00znz/wine-quality-api:${IMAGE_TAG:-latest}
+    container_name: wine_api
+    restart: unless-stopped
+
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_REGISTRY_URI: http://mlflow:5000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin123}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_EC2_METADATA_DISABLED: "true"
+
+      MLFLOW_MODEL_NAME: ${MLFLOW_MODEL_NAME:-WineQualityClassifier}
+      MLFLOW_MODEL_ALIAS: ${MLFLOW_MODEL_ALIAS:-champion}
+      MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-wine-quality-classification}
+
+      PREPROCESSING_OBJECTS_PATH: artifacts/preprocessing/preprocessing_objects.joblib
+      DATA_PROCESSED_DIR: data/processed
+      MODELS_DIR: artifacts/models
+      REPORTS_DIR: artifacts/reports
+      FIGURES_DIR: artifacts/figures
+
+      PYTHONPATH: /app
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - api_models:/app/artifacts/models
+      - api_reports:/app/artifacts/reports
+      - api_figures:/app/artifacts/figures
+
+    networks:
+      - mlops_network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  mlops_network:
+    external: true
+    name: wine_mlops_network
+
+volumes:
+  api_models:
+    name: wine_api_models
+
+  api_reports:
+    name: wine_api_reports
+
+  api_figures:
+    name: wine_api_figures
