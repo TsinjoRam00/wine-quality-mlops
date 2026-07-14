@@ -19,19 +19,22 @@ pipeline {
             defaultValue: false,
             description: 'Envoyer l’image vers Docker Hub'
         )
+
+        booleanParam(
+            name: 'DEPLOY_API',
+            defaultValue: false,
+            description: 'Déployer automatiquement l’API avec Docker Compose'
+        )
     }
 
     environment {
-        /*
-         *
-         */
         DOCKER_IMAGE = '00znz/wine-quality-api'
 
         PYTHONPATH = '.'
 
         /*
-         * Jenkins, MLflow et MinIO sont dans le même réseau Docker.
-         * Jenkins utilise donc les noms de services Docker.
+         * Jenkins, MLflow et MinIO communiquent
+         * à travers le réseau Docker.
          */
         MLFLOW_TRACKING_URI = 'http://mlflow:5000'
         MLFLOW_REGISTRY_URI = 'http://mlflow:5000'
@@ -46,9 +49,6 @@ pipeline {
     stages {
         stage('Checkout GitHub') {
             steps {
-                /*
-                 * Jenkins utilise le dépôt configuré dans le job.
-                 */
                 checkout scm
             }
         }
@@ -178,14 +178,43 @@ pipeline {
             }
         }
 
+        stage('Check Docker Build Files') {
+            steps {
+                sh '''
+                    echo "Vérification des fichiers nécessaires à l’image..."
+
+                    if [ ! -f artifacts/preprocessing/preprocessing_objects.joblib ]; then
+                        echo "ERREUR : preprocessing_objects.joblib est absent."
+                        echo "Relance le pipeline avec RUN_TRAINING coché."
+                        exit 1
+                    fi
+
+                    if [ ! -d data/processed ]; then
+                        echo "ERREUR : le dossier data/processed est absent."
+                        echo "Relance le pipeline avec RUN_TRAINING coché."
+                        exit 1
+                    fi
+
+                    echo "Les fichiers nécessaires sont présents."
+                '''
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 sh '''
+                    echo "Construction de l’image ${DOCKER_IMAGE}:${BUILD_NUMBER}..."
+
                     docker build \
                       -t ${DOCKER_IMAGE}:${BUILD_NUMBER} \
                       -t ${DOCKER_IMAGE}:latest \
                       -f docker/Dockerfile.api \
                       .
+
+                    echo "Image Docker construite :"
+                    docker image inspect \
+                      ${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                      --format='{{.RepoTags}}'
                 '''
             }
         }
@@ -206,17 +235,126 @@ pipeline {
                     )
                 ]) {
                     sh '''
+                        set -eu
+
+                        trap 'docker logout || true' EXIT
+
                         echo "$DOCKERHUB_TOKEN" |
                           docker login \
                             --username "$DOCKERHUB_USERNAME" \
                             --password-stdin
 
+                        echo "Envoi du tag ${BUILD_NUMBER}..."
                         docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                        docker push ${DOCKER_IMAGE}:latest
 
-                        docker logout
+                        echo "Envoi du tag latest..."
+                        docker push ${DOCKER_IMAGE}:latest
                     '''
                 }
+            }
+        }
+
+        stage('Deploy API with Docker Compose') {
+            when {
+                expression {
+                    return params.PUSH_DOCKER_IMAGE && params.DEPLOY_API
+                }
+            }
+
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== Vérification du fichier Compose ====="
+
+                    test -f docker-compose.deploy.yml
+
+                    docker compose \
+                      -f docker-compose.deploy.yml \
+                      config > /dev/null
+
+                    echo "===== Vérification du réseau Docker ====="
+
+                    docker network inspect \
+                      wine_mlops_network > /dev/null
+
+                    echo "===== Téléchargement de l’image ====="
+
+                    docker pull \
+                      ${DOCKER_IMAGE}:${BUILD_NUMBER}
+
+                    echo "===== Suppression de l’ancienne API ====="
+
+                    docker rm -f wine_api || true
+
+                    echo "===== Déploiement de la nouvelle API ====="
+
+                    IMAGE_TAG=${BUILD_NUMBER} \
+                      docker compose \
+                        -f docker-compose.deploy.yml \
+                        up -d \
+                        --force-recreate \
+                        api
+
+                    echo "===== État des services ====="
+
+                    IMAGE_TAG=${BUILD_NUMBER} \
+                      docker compose \
+                        -f docker-compose.deploy.yml \
+                        ps
+                '''
+            }
+        }
+
+        stage('Smoke Test API') {
+            when {
+                expression {
+                    return params.PUSH_DOCKER_IMAGE && params.DEPLOY_API
+                }
+            }
+
+            steps {
+                sh '''
+                    echo "Attente du démarrage de FastAPI..."
+
+                    for attempt in $(seq 1 24); do
+                        HEALTH_STATUS=$(
+                            docker inspect \
+                              --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' \
+                              wine_api 2>/dev/null || echo "absent"
+                        )
+
+                        echo "Tentative ${attempt}/24 — état : ${HEALTH_STATUS}"
+
+                        if docker exec wine_api \
+                            curl -fsS http://localhost:8000/health
+                        then
+                            echo ""
+                            echo "API déployée et fonctionnelle."
+                            exit 0
+                        fi
+
+                        if [ "$HEALTH_STATUS" = "unhealthy" ]; then
+                            echo "Le conteneur est devenu unhealthy."
+                            docker logs --tail=150 wine_api
+                            exit 1
+                        fi
+
+                        sleep 5
+                    done
+
+                    echo "L’API ne répond pas après 120 secondes."
+
+                    echo "===== État du conteneur ====="
+                    docker inspect \
+                      wine_api \
+                      --format='{{json .State.Health}}' || true
+
+                    echo "===== Logs de l’API ====="
+                    docker logs --tail=150 wine_api || true
+
+                    exit 1
+                '''
             }
         }
     }
