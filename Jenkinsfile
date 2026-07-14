@@ -39,7 +39,6 @@ pipeline {
         MLFLOW_TRACKING_URI = 'http://mlflow:5000'
         MLFLOW_REGISTRY_URI = 'http://mlflow:5000'
         MLFLOW_S3_ENDPOINT_URL = 'http://minio:9000'
-
         AWS_ACCESS_KEY_ID = 'minioadmin'
         AWS_SECRET_ACCESS_KEY = 'minioadmin123'
         AWS_DEFAULT_REGION = 'us-east-1'
