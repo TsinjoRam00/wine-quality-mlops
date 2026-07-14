@@ -1,0 +1,8 @@
+---
+- name: Deploy Wine Quality MLOps locally
+  hosts: mlops_servers
+  gather_facts: false
+  become: false
+
+  roles:
+    - app

@@ -1,5 +1,5 @@
 ---
-- name: Validate docker compose configuration
+- name: Validate Docker Compose configuration
   command: docker compose config
   args:
     chdir: "{{ app_dir }}"
@@ -10,13 +10,13 @@
   args:
     chdir: "{{ app_dir }}"
 
-- name: Show docker compose status
+- name: Read Docker Compose status
   command: docker compose ps
   args:
     chdir: "{{ app_dir }}"
   register: compose_status
   changed_when: false
 
-- name: Print docker compose status
+- name: Display Docker Compose status
   debug:
     var: compose_status.stdout_lines
