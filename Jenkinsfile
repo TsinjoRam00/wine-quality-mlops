@@ -16,13 +16,13 @@ pipeline {
 
         booleanParam(
             name: 'PUSH_DOCKER_IMAGE',
-            defaultValue: false,
+            defaultValue: true,
             description: 'Envoyer l’image vers Docker Hub'
         )
 
         booleanParam(
             name: 'DEPLOY_API',
-            defaultValue: false,
+            defaultValue: true,
             description: 'Déployer automatiquement l’API avec Docker Compose'
         )
     }
