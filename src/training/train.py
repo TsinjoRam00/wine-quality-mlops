@@ -1,3 +1,4 @@
+import os
 # src/training/train.py
 
 # Importation du module argparse pour lire les arguments en ligne de commande.
@@ -667,7 +668,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--figures-dir", type=Path, default=Path("artifacts/figures"))
 
     # Argument de l'URI MLflow.
-    parser.add_argument("--mlflow-tracking-uri", type=str, default="http://localhost:5000")
+    parser.add_argument("--mlflow-tracking-uri", type=str, default=os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
     # Argument du nom d'expérience MLflow.
     parser.add_argument("--experiment-name", type=str, default="wine-quality-classification")
