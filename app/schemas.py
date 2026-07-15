@@ -75,6 +75,9 @@ class PredictionResponse(BaseModel):
     # Probabilités par classe si disponibles.
     probabilities: Optional[Dict[str, float]] = None
 
+    # Identifiant utilisé pour envoyer le feedback réel.
+    prediction_id: Optional[str] = None
+
 
 # Requête pour lancer un entraînement.
 class TrainRequest(BaseModel):

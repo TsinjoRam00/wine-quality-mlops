@@ -2,12 +2,21 @@
 
 # Importation du module logging.
 import logging
+import time
+
+# Importation de la configuration des logs structurés.
+from app.logging_config import configure_logging
+
+# Importation des métriques Prometheus.
+from app.observability import MODEL_LOADED
+from app.observability import PREDICTIONS
+from app.observability import install_observability
 
 # Importation du context manager asynchrone pour gérer le démarrage de l'API.
 from contextlib import asynccontextmanager
 
 # Importation de FastAPI.
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 # Importation de BackgroundTasks pour lancer un entraînement sans bloquer la réponse.
 from fastapi import BackgroundTasks
@@ -25,6 +34,8 @@ from app.config import MLFLOW_TRACKING_URI
 # Importation du loader de modèle.
 from app.model_loader import model_loader
 
+from app.feedback_router import router as feedback_router
+
 # Importation des schémas.
 from app.schemas import HealthResponse
 from app.schemas import MetricsResponse
@@ -41,11 +52,11 @@ from app.services import training_job
 from app.services import training_status
 
 
-# Configuration basique des logs.
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-)
+from src.monitoring.prediction_store import save_prediction
+
+
+# Configuration des logs structurés en JSON.
+configure_logging()
 
 # Création du logger.
 logger = logging.getLogger(__name__)
@@ -62,8 +73,18 @@ async def lifespan(app: FastAPI):
         # Chargement du modèle.
         model_loader.load()
 
+        # Indique à Prometheus que le modèle est chargé.
+        MODEL_LOADED.labels(
+            model_name=MLFLOW_MODEL_NAME,
+        ).set(1)
+
     # Si le modèle n'est pas encore disponible.
     except Exception as error:
+        # Indique à Prometheus que le modèle n'est pas chargé.
+        MODEL_LOADED.labels(
+            model_name=MLFLOW_MODEL_NAME,
+        ).set(0)
+
         # Log non bloquant.
         logger.warning("Modèle non chargé au démarrage : %s", error)
 
@@ -82,6 +103,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Installation du middleware d'observabilité.
+install_observability(app)
+
+# Activation de la boucle de feedback.
+app.include_router(feedback_router)
+
 
 # Route racine.
 @app.get("/")
@@ -92,9 +119,11 @@ def root():
         "docs": "/docs",
         "health": "/health",
         "predict": "/predict",
+        "feedback": "/feedback",
         "train": "/train",
         "models": "/models",
         "metrics": "/metrics",
+        "prometheus_metrics": "/metrics/prometheus",
     }
 
 
@@ -167,7 +196,7 @@ def train(request: TrainRequest, background_tasks: BackgroundTasks):
 
 # Route de prédiction.
 @app.post("/predict", response_model=PredictionResponse)
-def predict(features: WineFeatures):
+def predict(features: WineFeatures, request: Request):
     # Si le modèle n'est pas chargé.
     if not model_loader.is_loaded():
         # Tentative de rechargement.
@@ -186,8 +215,70 @@ def predict(features: WineFeatures):
     # Conversion des features Pydantic en dictionnaire.
     input_data = features.model_dump()
 
+    # Mesure du temps de prédiction.
+    prediction_started = time.perf_counter()
+
     # Prédiction.
     result = model_loader.predict(input_data)
+
+    # Latence en millisecondes.
+    latency_ms = (
+        time.perf_counter() - prediction_started
+    ) * 1000
+
+    # Enregistrement de la prédiction dans PostgreSQL.
+    try:
+        prediction_id = save_prediction(
+            request_id=getattr(
+                request.state,
+                "request_id",
+                None,
+            ),
+            model_name=result["model_name"],
+            model_version=result.get("model_version"),
+            model_alias=result.get("model_alias"),
+            features=input_data,
+            predicted_class=result["predicted_class"],
+            probabilities=result.get("probabilities"),
+            latency_ms=latency_ms,
+        )
+
+    # Une panne du monitoring ne doit pas bloquer l'API.
+    except Exception as error:
+        logger.exception(
+            "Impossible d'enregistrer la prédiction : %s",
+            error,
+        )
+        prediction_id = None
+
+    # Ajout de l'identifiant à la réponse.
+    result["prediction_id"] = prediction_id
+
+    # Récupération de la classe prédite.
+    prediction_keys = (
+        "prediction",
+        "predicted_class",
+        "predicted_quality",
+        "quality",
+    )
+
+    if isinstance(result, dict):
+        predicted_class = next(
+            (
+                result[key]
+                for key in prediction_keys
+                if key in result
+            ),
+            "unknown",
+        )
+    else:
+        predicted_class = result
+
+    # Incrémentation du compteur Prometheus.
+    PREDICTIONS.labels(
+        model_name=MLFLOW_MODEL_NAME,
+        predicted_class=str(predicted_class),
+    ).inc()
 
     # Retour du résultat.
     return result
