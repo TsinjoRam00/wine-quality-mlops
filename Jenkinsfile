@@ -50,9 +50,6 @@ pipeline {
         POSTGRES_DB = 'mlflow_db'
         POSTGRES_USER = 'mlops_user'
         POSTGRES_PASSWORD = 'mlops_password'
-        AWS_ACCESS_KEY_ID = 'minioadmin'
-        AWS_SECRET_ACCESS_KEY = 'minioadmin123'
-        AWS_DEFAULT_REGION = 'us-east-1'
         AWS_EC2_METADATA_DISABLED = 'true'
     }
 
