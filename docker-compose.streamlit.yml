@@ -1,0 +1,34 @@
+services:
+  streamlit:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.streamlit
+    container_name: wine_streamlit
+    environment:
+      API_BASE_URL: http://wine_api:8000
+
+      GRAFANA_PUBLIC_URL: http://localhost:3000
+      PROMETHEUS_PUBLIC_URL: http://localhost:9090
+      MLFLOW_PUBLIC_URL: http://localhost:5000
+      JENKINS_PUBLIC_URL: http://localhost:8080
+      ALERTMANAGER_PUBLIC_URL: http://localhost:9093
+    ports:
+      - "8501:8501"
+    networks:
+      - mlops_network
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=5)"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s

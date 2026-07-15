@@ -29,6 +29,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = '00znz/wine-quality-api'
+        STREAMLIT_IMAGE = '00znz/wine-quality-streamlit'
 
         PYTHONPATH = '.'
 
@@ -91,6 +92,7 @@ pipeline {
 
                     python -m pip install --upgrade pip setuptools wheel
                     pip install -r requirements.txt
+                    pip install -r streamlit_app/requirements.txt
                 '''
             }
         }
@@ -161,6 +163,39 @@ pipeline {
 
                     pytest -v \
                       --junitxml=artifacts/reports/pytest-report.xml
+                '''
+            }
+        }
+
+        stage('Validate Streamlit Dashboard') {
+            steps {
+                sh '''
+                    set -eu
+
+                    . .venv/bin/activate
+
+                    echo "===== Version Streamlit ====="
+                    python -c "import streamlit; print(streamlit.__version__)"
+
+                    echo "===== Compilation de l'interface ====="
+                    python -m compileall -q streamlit_app
+
+                    echo "===== Validation Docker Compose ====="
+                    docker compose \
+                      -f docker-compose.yml \
+                      -f docker-compose.streamlit.yml \
+                      config > /dev/null
+
+                    echo "===== Construction de l'image Streamlit ====="
+                    docker build \
+                      -t ${STREAMLIT_IMAGE}:${BUILD_NUMBER} \
+                      -f docker/Dockerfile.streamlit \
+                      .
+
+                    echo "===== Vérification de l'image ====="
+                    docker image inspect \
+                      ${STREAMLIT_IMAGE}:${BUILD_NUMBER} \
+                      --format='{{.RepoTags}}'
                 '''
             }
         }
