@@ -44,7 +44,7 @@ def valid_payload() -> dict[str, float]:
         "free_sulfur_dioxide": 11.0,
         "total_sulfur_dioxide": 34.0,
         "density": 0.9978,
-        "pH": 3.51,
+        "ph": 3.51,
         "sulphates": 0.56,
         "alcohol": 9.4,
     }

@@ -144,6 +144,14 @@ def test_docker_compose_and_health(require_docker, project_root):
 @pytest.mark.integration
 @pytest.mark.docker
 def test_deployed_api_image_is_versioned(require_docker):
+    """Valide l'image uniquement lorsqu'un déploiement est attendu."""
+    expected_prefix = os.getenv("EXPECTED_API_IMAGE_PREFIX")
+
+    if not expected_prefix:
+        pytest.skip(
+            "Validation de l'image réservée à l'étape post-déploiement."
+        )
+
     inspect = command(
         "docker",
         "inspect",
@@ -151,6 +159,10 @@ def test_deployed_api_image_is_versioned(require_docker):
         "--format",
         "{{.Config.Image}}",
     )
+
+    assert inspect.returncode == 0, inspect.stderr
+
     image = inspect.stdout.strip()
-    assert image.startswith("00znz/wine-quality-api:")
+
+    assert image.startswith(expected_prefix)
     assert not image.endswith(":deploy-test")
