@@ -1,0 +1,61 @@
+groups:
+  - name: wine-quality
+    rules:
+      - alert: WineApiDown
+        expr: up{job="wine-api"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "API Wine Quality indisponible"
+
+      - alert: WineApiHighErrorRate
+        expr: |
+          sum(rate(wine_api_http_errors_total[5m]))
+          /
+          clamp_min(sum(rate(wine_api_http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Taux d'erreur supérieur à 5 %"
+
+      - alert: WineApiHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(wine_api_http_request_duration_seconds_bucket[5m])
+            )
+          ) > 2
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Latence p95 supérieure à 2 secondes"
+
+      - alert: WineModelNotLoaded
+        expr: wine_model_loaded{model_name="WineQualityClassifier"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "Modèle champion non chargé"
+
+      - alert: WineDataDrift
+        expr: wine_data_drift_detected == 1
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Drift des données détecté"
+
+      - alert: WinePerformanceDegraded
+        expr: wine_model_rolling_accuracy < 0.55
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "Performance réelle dégradée"
+
+      - alert: PlatformProbeFailed
+        expr: probe_success{job="service-probes"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Un service MLOps ne répond plus"
